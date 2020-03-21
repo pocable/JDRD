@@ -187,8 +187,8 @@ urls: The list of urls to download
 path: The path to download to.
 """
 def jdownload(device, urls, path):
-    print(','.join(urls))
-    device.linkgrabber.add_links([{'autostart': True, 'links': ','.join(urls), 'destinationFolder': path + "", "overwritePackagizerRules": True}])
+    print('\n'.join(urls))
+    device.linkgrabber.add_links([{'autostart': True, 'links': '\n'.join(urls), 'destinationFolder': path + "", "overwritePackagizerRules": True}])
 
 """
 Setup jdownloader using the given username and password
