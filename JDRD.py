@@ -24,10 +24,12 @@ JACKETT_KEY = ""
 # https://real-debrid.com/apitoken
 REAL_DB_KEY = ""
 
-# Other configuration items, search limit to limit amount of torrents shown
-# OUTPUT_DIR for the download output directory on your jdownloader server
-SEARCH_LIMIT = 5
-OUTPUT_DIR = "/media/movies/"
+# Set a limit to the number of torrents jacket can return.
+SEARCH_LIMIT = 300
+
+# Paths to both movie and tv directories. Make sure '/' is at the end!
+MOVIE_OUTPUT_DIR = "/media/movies/"
+TV_OUTPUT_DIR = "/media/tv/"
 
 # Should not be changed
 REAL_DB_SERVER = "https://api.real-debrid.com/rest/1.0/"
@@ -43,8 +45,8 @@ query: The string to search for (i.e. TV Name)
 limit: The limit of results to return.
 returns: request text, otherwise raises exception.
 """
-def search_jacket(query, limit=5):
-    req = requests.get(JACKETT_SERVER + "?apikey=%s&t=tvsearch&limit=%d&q=%s" % (JACKETT_KEY, limit, query))
+def search_jacket(query, categories="5000,5010,5030,5040,5045,5050,5060,5070,5080,2000,2010,2020,2030,2040,2045,2050,2060,2070,2080", limit=5):
+    req = requests.get(JACKETT_SERVER + "?apikey=%s&cat=%s&t=search&limit=%d&q=%s" % (JACKETT_KEY, categories, limit, query))
     if req.status_code == 200:
         return req.text
     else:
@@ -125,11 +127,10 @@ Listener to listen if RD has finished downloading the file.
 ident: The RD id of the file.
 returns: True if it has finished, False if error.
 """
-def launch_listener(ident, delay=5):
+def launch_listener(ident, delay=10):
     ite = 0
     while(True):
         ite += 1
-        time.sleep(delay)
         req = requests.get(REAL_DB_SERVER + "torrents/info/%s" %  ident, headers=header)
         if(req.status_code == 401 or req.status_code == 403):
             raise Exception("Failed to get torrent info. Status code: " + str(req.status_code))
@@ -145,6 +146,7 @@ def launch_listener(ident, delay=5):
             return False
         elif res['status'] == 'dead':
             return False
+        time.sleep(delay)
     print("Finished listening to file: %s" % ident)
 
 """
@@ -163,7 +165,7 @@ def get_rd_download_urls(ident):
 Listen for real debrid updates and then download when RD is done downloading.
 ident: The identifer for the show.
 """
-def listen_and_download(ident):
+def listen_and_download(ident, direc):
     state = launch_listener(ident)
     if state == False:
         print("RD error occured. Please check Real Debrid: https://real-debrid.com/torrents")
@@ -177,7 +179,7 @@ def listen_and_download(ident):
             if(req.status_code == 401 or req.status_code == 403):
                 raise Exception("Failed to get torrent info. Status code: " + str(req.status_code))
             download_urls.append(res['download'])
-        jdownload(device, download_urls, OUTPUT_DIR)
+        jdownload(device, download_urls, direc)
         print("Download started!")
 
 """
@@ -205,25 +207,60 @@ def setup_jdownload():
 # Release main method.
 if __name__ == "__main__":
 
-    # Ask user for movie name
-    query = input("Enter movie name: ")
-    req = search_jacket(query, limit=SEARCH_LIMIT)
+    # Get what show type it is
+    showType = ""
+    while True:
+        showType = input("(T)V, (M)ovie or (E)xit: ").lower()
+        if showType == "e":
+            sys.exit(0)
+            break
+        if showType == 't' or showType == 'm':
+            break
+
+    # Movies can just be saved to the movies directory. Update categories fed to jacket.
+    categories = '2000,2010,2020,2030,2040,2045,2050,2060,2070,2080'
+    location = MOVIE_OUTPUT_DIR
+    if showType == 't':
+        categories = '5000,5010,5030,5040,5045,5050,5060,5070,5080'
+        location = TV_OUTPUT_DIR
+
+    # Ask user for name
+    query = input("Enter search query: ")
+    req = search_jacket(query, categories=categories, limit=SEARCH_LIMIT)
 
     # Convert to xml and get all magnet links
     root = convert_xml(req)
     links = get_magnet_links(root)
+    links = {k: v for k, v in sorted(links.items(), key=lambda x: -1 * x[1]['seeders'])}
+    #print(linkss)
     titles = list(links.keys())
     ind = -1
 
-    # While input is invalid
+    # When there is zero results, end.
+    if len(titles) == 0:
+        print("Zero titles were found.")
+        sys.exit(-1)
+    
+    # Get user to select which torrent they want to download.
+    boundMax = 10
+    curBound = boundMax
     while ind < 0 or ind > len(titles) - 1:
-        for i in range(0, len(titles)):
+        
+        for i in range(curBound-10, min(curBound, len(titles))):
             try:
-                print("ID: %d - %s - %d" % (i, titles[i], links[titles[i]]['seeders']))
+                print("ID: %d - %s - Seeders: %d" % (i, titles[i], links[titles[i]]['seeders']))
             except:
-                print("ID: %d - NON UNICODE TITLE - %d" % (i, links[titles[i]]['seeders']))
+                print("ID: %d - NON UNICODE TITLE - Seeders: %d" % (i, links[titles[i]]['seeders']))
         try: 
-            ind = int(input("Select ID to Download: "))
+            ind = input("Select ID to Download (-1 to Exit, '+' to see next %d, '-' to see previous %d): " % (boundMax, boundMax))
+
+            # Allow scrolling up and down in search list
+            if ind == '+':
+                curBound = min(curBound + boundMax, len(titles))
+            elif ind == '-':
+                curBound = max(curBound - boundMax, boundMax)
+            ind = int(ind)
+
         except:
             ind = -2
         if ind == -1:
@@ -234,15 +271,47 @@ if __name__ == "__main__":
 
     # Send to real debrid.
     ident = send_to_rd(mag)
-    print("Identifier: %s" % ident)
+    print("Download Sent. Identifier: %s" % ident)
 
     # Offer to listen to RD updates
     choice = ""
     while choice != "Y" or choice != "N":
-        choice = input("Do you want to listen until the file is finished downloading and then upload to JDownloader (Y/N)?\nOnly use this option when you are not running an RD listen server: ")
+        choice = input("Do you want to listen until the file is finished downloading and then upload to JDownloader?\nOnly use this option when you are not running an RD listen server (Y/N): ")
         if choice.upper() == "Y":
-            listen_and_download(ident)
+
+
+            # Has been moved from earlier. Should be own function.
+            # Metadata Information if its a show. Otherwise just download to movies directory.
+            if showType == 't':
+                print("Please enter metadata information for the show your trying to download.")
+                series = input("Enter show name: ")
+
+                while True:
+                    # Ask if there is any sub folders. A complete pack only needs to be downloaded to a master folder.
+                    isFull = input("Is the torrent multi-folder (Y/N): ").lower()
+                    if isFull == 'y' or isFull == 'n':
+                        break
+
+                # If its not a complete torrent, get the season number to place the files in
+                if isFull == 'n':
+                    
+                    # Verify season number
+                    while True:
+                        try:
+                            season = int(input("Enter season number: "))
+                            break
+                        except:
+                            pass
+                    location += series + "/S" + str(season) + "/"
+                else:
+                    # Just add the series name to the location.
+                    location += series + "/"
+
+            # END MOVED FUNCTION
+            print("Location: %s" % location)
+            listen_and_download(ident, location)
             break
+
         elif choice.upper() == "N":
             print("Goodbye!")
             break

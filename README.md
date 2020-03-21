@@ -30,10 +30,12 @@ JACKETT_KEY = ""
 # https://real-debrid.com/apitoken
 REAL_DB_KEY = ""
 
-# Other configuration items, search limit to limit amount of torrents shown
-# OUTPUT_DIR for the download output directory on your jdownloader server
-SEARCH_LIMIT = 5
-OUTPUT_DIR = "/media/movies/"
+# Set a limit to the number of torrents jacket can return.
+SEARCH_LIMIT = 300
+
+# Paths to both movie and tv directories. Make sure '/' is at the end!
+MOVIE_OUTPUT_DIR = "/media/movies/"
+TV_OUTPUT_DIR = "/media/tv/"
 
 # Should not be changed
 REAL_DB_SERVER = "https://api.real-debrid.com/rest/1.0/"
@@ -47,11 +49,13 @@ header = {'Authorization': 'Bearer ' + REAL_DB_KEY }
 |------|:-----:|
 |JDOWNLOADER_USER|Username for http://my.jdownloader.org |
 |JDOWNLOADER_PASS|Password for http://my.jdownloader.org |
+|JDOWNLOADER_DEVICE|Device for http://my.jdownloader.org |
 |JACKETT_SERVER|Jackett server torznab address and endpoint. Should look like http://0.0.0.0:9117/api/v2.0/indexers/all/results/torznab |
 |JACKETT_KEY|Jackett api key from the top right of Jackett|
 |REAL_DB_KEY|Real Debrid API Key https://real-debrid.com/apitoken |
 |SEARCH_LIMIT|Limit on the number of Jackett responses returned |
-|OUTPUT_DIR|The directory JDownloader2 will download into |
+|MOVIE_OUTPUT_DIR|The directory JDownloader2 will download into when movies are selected |
+|TV_OUTPUT_DIR|The directory JDownloader2 will download into when tv shows are selected |
 
 ## Troubleshooting
 
@@ -60,4 +64,3 @@ header = {'Authorization': 'Bearer ' + REAL_DB_KEY }
 |JDownloader2 is unable to find device| Make sure your device name matches te one you assigned on http://my.jdownloader.org. It is case sensitive |
 |Throwing Exception| Likely a real debrid issue. Above the exception block there should be a status code. Check here for codes: https://api.real-debrid.com/. Make sure you have a correct API key as well. |
 |NON UNICODE TITLE as an option title| Some torrents have non unicode characters in the title. This was a quick fix to display them. |
-|Shows are not sorted into season folders| Shows are downloaded directly in the OUTPUT_DIR. No sub folders or anything. | 
