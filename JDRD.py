@@ -3,26 +3,22 @@ import requests
 import sys
 import time
 import xml.etree.ElementTree as ET
-import myjdapi
 
 import urllib.parse as urlparse
 from urllib.parse import parse_qs
+
 
 ###########################
 #   Configuration Items   #
 ###########################
 
-# https://my.jdownloader.org/
-JDOWNLOADER_USER = ""
-JDOWNLOADER_PASS = ""
-JDOWNLOADER_DEVICE = ""
+# DLAPI Server Information
+DLAPI_SERVER = ""
+DLAPI_KEY = ""
 
 # From your own jackett server
 JACKETT_SERVER = ""
 JACKETT_KEY = ""
-
-# https://real-debrid.com/apitoken
-REAL_DB_KEY = ""
 
 # Set a limit to the number of torrents jacket can return.
 SEARCH_LIMIT = 300
@@ -31,9 +27,8 @@ SEARCH_LIMIT = 300
 MOVIE_OUTPUT_DIR = "/media/movies/"
 TV_OUTPUT_DIR = "/media/tv/"
 
-# Should not be changed
-REAL_DB_SERVER = "https://api.real-debrid.com/rest/1.0/"
-header = {'Authorization': 'Bearer ' + REAL_DB_KEY }
+# Header for DLAPI
+dl_header = {'Authorization': DLAPI_KEY}
 
 ###########################
 # End Configuration Items #
@@ -82,127 +77,6 @@ def get_magnet_links(root):
         info[title] = {'url' : url, 'seeders' : seeders}
     return info
 
-"""
-Send a magnet url to realdebrid to being downloading.
-magnet: The url.
-returns: 
-"""
-def send_to_rd(magnet):
-    data = {'magnet': magnet}
-    req = requests.post(REAL_DB_SERVER + "torrents/addMagnet", data=data, headers=header)
-    if req.status_code != 201:
-        print(req.status_code)
-        print(req.text)
-        raise Exception("Issue adding magnet to RD downloads. Status code:" + str(req.status_code))
-    else:
-        res = json.loads(req.text)
-        ident = res['id']
-        req = requests.post(REAL_DB_SERVER + "torrents/selectFiles/%s" % ident, data={'files': "all"}, headers=header)
-        if req.status_code != 204 and req.status_code != 202:
-            print(req.status_code)
-            print(req.text)
-            raise Exception("Issue selecting files for RD download. Status code:" + str(req.status_code))
-        else:
-            return ident
-
-"""
-Check if RD has an instant download torrent available.
-links: Magnet link to check the has on RD servers.
-returns: Boolean if its an instant download link.
-"""
-def check_magnet_instant(link):
-
-    # Extract hash from each magnet link
-    parsed = urlparse.urlparse(link)
-    full = parse_qs(parsed.query)['xt'][0].split(':')
-    has = full[len(full)-1]
-
-    # Send request for instant availability.
-    req = requests.get(REAL_DB_SERVER + "torrents/instantAvailability/" %  has, headers=header)
-    print(req.text)
-
-
-"""
-Listener to listen if RD has finished downloading the file.
-ident: The RD id of the file.
-returns: True if it has finished, False if error.
-"""
-def launch_listener(ident, delay=10):
-    ite = 0
-    while(True):
-        ite += 1
-        req = requests.get(REAL_DB_SERVER + "torrents/info/%s" %  ident, headers=header)
-        if(req.status_code == 401 or req.status_code == 403):
-            raise Exception("Failed to get torrent info. Status code: " + str(req.status_code))
-        res = json.loads(req.text)
-        print("Current Status: %s, Iteration: %d" % (res['status'], ite))
-        if res['status'] == 'downloaded':
-            return True
-        elif res['status'] == 'magnet_error':
-            return False
-        elif res['status'] == 'virus':
-            return False
-        elif res['status'] == 'error':
-            return False
-        elif res['status'] == 'dead':
-            return False
-        time.sleep(delay)
-    print("Finished listening to file: %s" % ident)
-
-"""
-Get the real debrid download url from the website
-ident: The identifier for the show your looking for.
-returns: The links associated with the identifier
-"""
-def get_rd_download_urls(ident):
-    req = requests.get(REAL_DB_SERVER + "torrents/info/%s" %  ident, headers=header)
-    if(req.status_code == 401 or req.status_code == 403):
-        raise Exception("Failed to get torrent info. Status code: " + str(req.status_code))
-    res = json.loads(req.text)
-    return res['links']
-
-"""
-Listen for real debrid updates and then download when RD is done downloading.
-ident: The identifer for the show.
-"""
-def listen_and_download(ident, direc):
-    state = launch_listener(ident)
-    if state == False:
-        print("RD error occured. Please check Real Debrid: https://real-debrid.com/torrents")
-    else:
-        device = setup_jdownload()
-        urls = get_rd_download_urls(ident)
-        download_urls = []
-        for url in urls:
-            req = requests.post(REAL_DB_SERVER + "unrestrict/link", data={'link': url}, headers=header)
-            res = json.loads(req.text)
-            if(req.status_code == 401 or req.status_code == 403):
-                raise Exception("Failed to get torrent info. Status code: " + str(req.status_code))
-            download_urls.append(res['download'])
-        jdownload(device, download_urls, direc)
-        print("Download started!")
-
-"""
-Send a list of urls to a jdownloader device
-device: The jdownload device
-urls: The list of urls to download
-path: The path to download to.
-"""
-def jdownload(device, urls, path):
-    print('\n'.join(urls))
-    device.linkgrabber.add_links([{'autostart': True, 'links': '\n'.join(urls), 'destinationFolder': path + "", "overwritePackagizerRules": True}])
-
-"""
-Setup jdownloader using the given username and password
-returns: The device to send downloads to.
-"""
-def setup_jdownload():
-    jd = myjdapi.Myjdapi()
-    jd.set_app_key("JDRD")
-    jd.connect(JDOWNLOADER_USER, JDOWNLOADER_PASS)
-    jd.update_devices()
-    device = jd.get_device(JDOWNLOADER_DEVICE)
-    return device
 
 # Release main method.
 if __name__ == "__main__":
@@ -245,12 +119,13 @@ if __name__ == "__main__":
     boundMax = 10
     curBound = boundMax
     while ind < 0 or ind > len(titles) - 1:
-        
-        for i in range(curBound-10, min(curBound, len(titles))):
+        print('---------------------------')
+        for i in range(max(0, curBound-10), min(curBound, len(titles))):
             try:
                 print("ID: %d - %s - Seeders: %d" % (i, titles[i], links[titles[i]]['seeders']))
             except:
                 print("ID: %d - NON UNICODE TITLE - Seeders: %d" % (i, links[titles[i]]['seeders']))
+        print('---------------------------')
         try: 
             ind = input("Select ID to Download (-1 to Exit, '+' to see next %d, '-' to see previous %d): " % (boundMax, boundMax))
 
@@ -263,56 +138,44 @@ if __name__ == "__main__":
 
         except:
             ind = -2
+            print("\n\n")
         if ind == -1:
             sys.exit(-1)
 
     # Get the magnet link of the selected item.
     mag = links[titles[ind]]['url']
 
-    # Send to real debrid.
-    ident = send_to_rd(mag)
-    print("Download Sent. Identifier: %s" % ident)
-
     # Offer to listen to RD updates
-    choice = ""
-    while choice != "Y" or choice != "N":
-        choice = input("Do you want to listen until the file is finished downloading and then upload to JDownloader?\nOnly use this option when you are not running an RD listen server (Y/N): ")
-        if choice.upper() == "Y":
+    if showType == 't':
+        print("Please enter metadata information for the show your trying to download.")
+        series = input("Enter show name: ")
 
+        while True:
+            # Ask if there is any sub folders. A complete pack only needs to be downloaded to a master folder.
+            isFull = input("Is the torrent multi-folder (Y/N): ").lower()
+            if isFull == 'y' or isFull == 'n':
+                break
 
-            # Has been moved from earlier. Should be own function.
-            # Metadata Information if its a show. Otherwise just download to movies directory.
-            if showType == 't':
-                print("Please enter metadata information for the show your trying to download.")
-                series = input("Enter show name: ")
+        # If its not a complete torrent, get the season number to place the files in
+        if isFull == 'n':
+            
+            # Verify season number
+            while True:
+                try:
+                    season = int(input("Enter season number: "))
+                    break
+                except:
+                    pass
+            location += series + "/S" + str(season) + "/"
+        else:
+            # Just add the series name to the location.
+            location += series + "/"
 
-                while True:
-                    # Ask if there is any sub folders. A complete pack only needs to be downloaded to a master folder.
-                    isFull = input("Is the torrent multi-folder (Y/N): ").lower()
-                    if isFull == 'y' or isFull == 'n':
-                        break
-
-                # If its not a complete torrent, get the season number to place the files in
-                if isFull == 'n':
-                    
-                    # Verify season number
-                    while True:
-                        try:
-                            season = int(input("Enter season number: "))
-                            break
-                        except:
-                            pass
-                    location += series + "/S" + str(season) + "/"
-                else:
-                    # Just add the series name to the location.
-                    location += series + "/"
-
-            # END MOVED FUNCTION
-            print("Location: %s" % location)
-            listen_and_download(ident, location)
-            break
-
-        elif choice.upper() == "N":
-            print("Goodbye!")
-            break
+    # END MOVED FUNCTION
+    print("Location: %s" % location)
+    req = requests.post(DLAPI_SERVER + "/api/v1/content", json={'magnet_url': mag, 'path': location}, headers=dl_header)
+    if req.status_code != 200:
+        print("Error in sending to DLAPI: Status code %d, Info: %s" % (req.status_code, req.text))
+    else:
+        print("Download has been sent to DLAPI server.")
     
