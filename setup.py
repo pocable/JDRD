@@ -9,7 +9,7 @@ if __name__ == "__main__":
 
     d_srv = input("Enter DLAPI Server IP: ")
     d_key = input("Enter DLAPI Key: ")
-    j_server = input("Enter Jackett Sever IP: ")
+    j_server = input("Enter Jackett Torznab Path: ")
     j_key = input("Enter Jackett API Key: ")
     m_loc = input("Enter movie dl location (/movies/): ")
     tv_loc = input("Enter tv dl loction (/tv/): ")
