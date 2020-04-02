@@ -6,7 +6,8 @@ this a temp prototype frontend for DLAPI.
 Run these two commands and you are good to go:
 ```
 pip install -r requirements.txt  
-python JDRD.py
+python setup.py
+python start.py
 ```
 
 ## Configuration
