@@ -3,6 +3,7 @@ import requests
 import sys
 import time
 import xml.etree.ElementTree as ET
+import os
 
 import urllib.parse as urlparse
 from urllib.parse import parse_qs
@@ -13,19 +14,19 @@ from urllib.parse import parse_qs
 ###########################
 
 # DLAPI Server Information
-DLAPI_SERVER = ""
-DLAPI_KEY = ""
+DLAPI_SERVER = os.environ['DLAPI_SERVER']
+DLAPI_KEY = os.environ['DLAPI_KEY']
 
 # From your own jackett server
-JACKETT_SERVER = ""
-JACKETT_KEY = ""
+JACKETT_SERVER = os.environ['JACKETT_SERVER']
+JACKETT_KEY = os.environ['JACKETT_KEY']
 
 # Set a limit to the number of torrents jacket can return.
 SEARCH_LIMIT = 300
 
 # Paths to both movie and tv directories. Make sure '/' is at the end!
-MOVIE_OUTPUT_DIR = "/media/movies/"
-TV_OUTPUT_DIR = "/media/tv/"
+MOVIE_OUTPUT_DIR =  os.environ['MOVIE_OUTPUT']
+TV_OUTPUT_DIR = os.environ['TV_OUTPUT']
 
 # Header for DLAPI
 dl_header = {'Authorization': DLAPI_KEY}
@@ -79,7 +80,7 @@ def get_magnet_links(root):
 
 
 # Release main method.
-if __name__ == "__main__":
+def main():
 
     # Get what show type it is
     showType = ""
@@ -179,3 +180,5 @@ if __name__ == "__main__":
     else:
         print("Download has been sent to DLAPI server.")
     
+if __name__ == "__main__":
+    main()
