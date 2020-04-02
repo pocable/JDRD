@@ -174,7 +174,7 @@ def main():
 
     # END MOVED FUNCTION
     print("Location: %s" % location)
-    req = requests.post(DLAPI_SERVER + "/api/v1/content", json={'magnet_url': mag, 'path': location}, headers=dl_header)
+    req = requests.post(DLAPI_SERVER + "/api/v1/content", json={'magnet_url': mag, 'path': location, 'title':titles[ind]}, headers=dl_header)
     if req.status_code != 200:
         print("Error in sending to DLAPI: Status code %d, Info: %s" % (req.status_code, req.text))
     else:
