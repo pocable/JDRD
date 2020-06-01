@@ -69,7 +69,9 @@ def get_magnet_links(root):
         try:
             url = requests.get(url).url
         except requests.exceptions.InvalidSchema as e:
-            url = str(e).split("'")[1]
+            # Remove error intro
+            url = str(e)[39:]
+            url = url[:-1]
         seeders = -1
         for subchild in child.iter('{http://torznab.com/schemas/2015/feed}attr'):
             if subchild.attrib['name'] == 'seeders':
@@ -173,7 +175,7 @@ def main():
             location += series + "/"
 
     # END MOVED FUNCTION
-    print("Location: %s" % location)
+    print("Location: %s, Magnet: %s" % (location, mag))
     req = requests.post(DLAPI_SERVER + "/api/v1/content", json={'magnet_url': mag, 'path': location, 'title':titles[ind]}, headers=dl_header)
     if req.status_code != 200:
         print("Error in sending to DLAPI: Status code %d, Info: %s" % (req.status_code, req.text))
