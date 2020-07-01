@@ -1,6 +1,11 @@
+# Web Version
+[A newer web version of JDRD was created](https://github.com/Pocable/JDRD-Web-Application). The new version has download cancelation as well as a better UI for downloading tv shows and movies. As I use and like that one more, I will not be updating this repo with new features. I will try to keep this up to date if I change DLAPI's code such that it breaks it, but I will try not to do that.
+
 # JDRD
 Python script to search Jackett for a movie/tvshow and send it to DLAPI. I'm just gonna call
 this a temp prototype frontend for DLAPI.
+
+Note: Please only use this for grabbing legal backups. I am not responsible for what you do with this.
 
 ## Installation
 Run these two commands and you are good to go:
